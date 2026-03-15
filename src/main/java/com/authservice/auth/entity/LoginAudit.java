@@ -52,4 +52,13 @@ public class LoginAudit {
     public void setIp(String ip) {
         this.ip = ip;
     }
+
+	public void setCreatedAt(LocalDateTime now) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public void setLoginTime(LocalDateTime loginTime) {
+		this.loginTime = loginTime;
+	}
 }

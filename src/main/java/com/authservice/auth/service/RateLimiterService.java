@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Refill;
 
 @Service
 public class RateLimiterService {
@@ -17,11 +16,12 @@ public class RateLimiterService {
 
     public boolean tryConsume(String key) {
 
-        Bucket bucket = buckets.computeIfAbsent(key, k -> {
+        @SuppressWarnings("deprecation")
+		Bucket bucket = buckets.computeIfAbsent(key, k -> {
 
-            Bandwidth limit = Bandwidth.classic(
+            Bandwidth limit = Bandwidth.simple(
                     5,
-                    Refill.intervally(5, Duration.ofMinutes(1))
+                    Duration.ofMinutes(1)
             );
 
             return Bucket.builder()

@@ -2,47 +2,62 @@ package com.authservice.auth.security;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
+import jakarta.annotation.PostConstruct;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.Keys;
 
 @Component
 public class JwtUtil {
 
-    private static final String SECRET =
-            "THIS_IS_A_STRONG_PRODUCTION_SECRET_KEY_1234567890123456";
+    @Value("${jwt.secret}")
+    private String secret;
 
-    private static final long ACCESS_EXPIRATION =
-            1000 * 60*5; // 10 minute
+    @Value("${jwt.access.expiration}")
+    private long accessExpiration;
 
-    private static final long REFRESH_EXPIRATION =
-            1000L * 60 * 60 * 24 * 7; // 7 days
+    @Value("${jwt.refresh.expiration}")
+    private long refreshExpiration;
 
-    private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
+    private Key key;
+
+    @PostConstruct
+    public void init() {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+    }
 
     // ACCESS TOKEN
     public String generateAccessToken(String email, String role) {
+
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
                 .setSubject(email)
                 .claim("role", role)
+                .claim("type", "ACCESS")
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + ACCESS_EXPIRATION))
-                .signWith(key, SignatureAlgorithm.HS256)
+                .setExpiration(new Date(System.currentTimeMillis() + accessExpiration))
+                .signWith(key)
                 .compact();
     }
 
     // REFRESH TOKEN
     public String generateRefreshToken(String email) {
+
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
                 .setSubject(email)
+                .claim("type", "REFRESH")
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + REFRESH_EXPIRATION))
-                .signWith(key, SignatureAlgorithm.HS256)
+                .setExpiration(new Date(System.currentTimeMillis() + refreshExpiration))
+                .signWith(key)
                 .compact();
     }
 
@@ -52,29 +67,65 @@ public class JwtUtil {
     }
 
     // EXTRACT ROLE
-    
     public String extractRole(String token) {
         return extractClaims(token).get("role", String.class);
     }
 
     // TOKEN VALIDATION WITH USERDETAILS
     public boolean validateToken(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+
+        try {
+
+            final String username = extractUsername(token);
+
+            return username.equals(userDetails.getUsername())
+                    && !isTokenExpired(token);
+
+        } catch (JwtException | IllegalArgumentException e) {
+
+            return false;
+        }
     }
 
     // SIMPLE VALIDATION
     public boolean validateToken(String token) {
-        return !isTokenExpired(token);
+
+        try {
+
+            return !isTokenExpired(token);
+
+        } catch (JwtException | IllegalArgumentException e) {
+
+            return false;
+        }
     }
 
     // CHECK EXPIRATION
     private boolean isTokenExpired(String token) {
-        return extractClaims(token).getExpiration().before(new Date());
+
+        return extractClaims(token)
+                .getExpiration()
+                .before(new Date());
+    }
+
+    // EXTRACT EXPIRATION DATE (NEW)
+    public Date extractExpiration(String token) {
+        return extractClaims(token).getExpiration();
+    }
+
+    // GET REMAINING TOKEN EXPIRATION (NEW)
+    public long getRemainingExpiration(String token) {
+
+        Date expiration = extractExpiration(token);
+
+        long remainingTime = expiration.getTime() - System.currentTimeMillis();
+
+        return remainingTime / 1000;
     }
 
     // EXTRACT ALL CLAIMS
     private Claims extractClaims(String token) {
+
         return Jwts.parserBuilder()
                 .setSigningKey(key)
                 .build()

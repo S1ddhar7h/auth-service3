@@ -47,7 +47,6 @@ public class SecurityConfig {
     public DaoAuthenticationProvider authenticationProvider() {
 
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
 
@@ -70,7 +69,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
 
-            // Security Headers
+            // Security headers
             .headers(headers -> headers
                 .contentSecurityPolicy(csp ->
                         csp.policyDirectives("default-src 'self'"))
@@ -81,19 +80,46 @@ public class SecurityConfig {
             )
 
             .sessionManagement(session ->
-                    session.sessionCreationPolicy(
-                            SessionCreationPolicy.STATELESS))
-
-            .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/auth/**").permitAll()
-                    .requestMatchers("/admin/**").hasRole("ADMIN")
-                    .anyRequest().authenticated()
-            )
+                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
             .authenticationProvider(authenticationProvider())
 
-            .addFilterBefore(jwtFilter,
-                    UsernamePasswordAuthenticationFilter.class);
+            .authorizeHttpRequests(auth -> auth
+
+                // Swagger public endpoints
+                .requestMatchers(
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html"
+                ).permitAll()
+
+                // Auth public endpoints
+                .requestMatchers(
+                        "/auth/login",
+                        "/auth/signup",
+                        "/auth/refresh",
+                        "/auth/forgot-password",
+                        "/auth/reset-password",
+                        "/auth/verify"
+                ).permitAll()
+
+                .requestMatchers("/admin/**").hasRole("ADMIN")
+                .requestMatchers("/user/**").hasRole("USER")
+                .requestMatchers("/common/**").hasAnyRole("ADMIN","USER")
+                
+                
+
+                // Protected endpoints
+                .requestMatchers("/auth/logout").authenticated()
+                .requestMatchers("/auth/logout-device").authenticated()
+                .requestMatchers("/auth/audit/**").hasRole("ADMIN")
+
+                // All other APIs require authentication
+                .anyRequest().authenticated()
+            )
+
+            // JWT filter
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

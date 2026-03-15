@@ -2,8 +2,17 @@ package com.authservice.auth.dto;
 
 public class ResetPasswordRequest {
 
+    private String email;
     private String token;
     private String newPassword;
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
     public String getToken() {
         return token;

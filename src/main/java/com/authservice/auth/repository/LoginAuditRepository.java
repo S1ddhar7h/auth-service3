@@ -7,5 +7,6 @@ import com.authservice.auth.entity.LoginAudit;
 public interface LoginAuditRepository extends JpaRepository<LoginAudit, Long> {
 
     Optional<LoginAudit> findTopByEmailOrderByLoginTimeDesc(String email);
+    
 
 }

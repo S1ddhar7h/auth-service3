@@ -1,168 +1,129 @@
 package com.authservice.auth.controller;
-import jakarta.servlet.http.HttpServletRequest;
-import com.authservice.auth.dto.*;
-import com.authservice.auth.entity.User;
-import com.authservice.auth.repository.UserRepository;
-import com.authservice.auth.service.AuthService;
-import java.util.List;
-import com.authservice.auth.repository.UserSessionRepository;
-import com.authservice.auth.entity.UserSession;
-//import java.util.List;
-//import org.springframework.security.core.Authentication;
 
-import java.util.Map;
+import java.util.List;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 import org.springframework.security.core.Authentication;
-//import com.sun.org.slf4j.internal.LoggerFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-//import ch.qos.logback.classic.Logger;
-import io.swagger.v3.oas.annotations.tags.Tag;
-//import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
-import com.authservice.auth.dto.LogoutRequest;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.authservice.auth.dto.*;
+import com.authservice.auth.entity.UserSession;
+import com.authservice.auth.service.AuthService;
 
-@Tag(name = "Authentication API", description = "Signup, Login, Refresh, Logout")
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+
+@Tag(
+    name = "Authentication API",
+    description = "Endpoints for user signup, login, JWT refresh, password reset, session management and logout."
+)
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
-	private static final Logger log =
-	       LoggerFactory.getLogger(AuthController.class);
 
+    private final AuthService s;
 
-    private final AuthService authService;
-    private final UserRepository userRepository;
-    private final UserSessionRepository userSessionRepository;
+    public AuthController(AuthService s) {
+        this.s = s;
+    }
 
-    public AuthController(AuthService authService,
-                          UserRepository userRepository, 
-                                  UserSessionRepository userSessionRepository) {
-
-                this.authService = authService;
-                this.userRepository = userRepository;
-                this.userSessionRepository = userSessionRepository;
-            } {
-            }
-
-    // SIGNUP
+    @Operation(summary = "User Signup", description = "Register a new user account")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "User created successfully"),
+        @ApiResponse(responseCode = "400", description = "Validation error"),
+        @ApiResponse(responseCode = "409", description = "User already exists")
+    })
     @PostMapping("/signup")
-    public ResponseEntity<ApiResponse<AuthResponse>> signup(
-            @Valid @RequestBody SignupRequest request) {
-
-        AuthResponse response = authService.signup(request);
-
-        return ResponseEntity.ok(
-                new ApiResponse<>(200, "Signup successful", response)
-        );
+    public AuthResponse signup(@Valid @RequestBody SignupRequest r){
+        return s.signup(r);
     }
 
-    // LOGIN
+    @Operation(summary = "User Login", description = "Authenticate user and generate JWT tokens")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Login successful"),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+        @ApiResponse(responseCode = "403", description = "Account disabled or locked")
+    })
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<AuthResponse>> login(
-            @Valid @RequestBody LoginRequest request,
-            HttpServletRequest httpRequest) {
-
-        String ip = httpRequest.getRemoteAddr();
-
-        AuthResponse response = authService.login(request, ip);
-
-        return ResponseEntity.ok(
-                new ApiResponse<>(200, "Login successful", response)
-        );
+    public AuthResponse login(@Valid @RequestBody LoginRequest r, HttpServletRequest req){
+        return s.login(r, req.getRemoteAddr(), req.getHeader("User-Agent"));
     }
 
-    // SECURE API
-    @GetMapping("/secure")
-    public ResponseEntity<ApiResponse<String>> secureApi() {
-
-        return ResponseEntity.ok(
-                new ApiResponse<>(200, "Success", "SECURED API WORKING")
-        );
-    }
-
-    // EMAIL VERIFY
-    @GetMapping("/verify")
-    public String verifyEmail(@RequestParam String token) {
-
-        System.out.println("Token received: " + token);
-
-        User user = userRepository.findByVerificationToken(token)
-                .orElseThrow(() ->
-                        new RuntimeException("Invalid token"));
-
-        System.out.println("User found: " + user.getEmail());
-
-        user.setEnabled(true);
-        user.setVerificationToken(null);
-
-        userRepository.save(user);
-
-        return "Email verified successfully";
-        
-    }
-    
+    @Operation(summary = "Refresh Access Token")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "New access token generated"),
+        @ApiResponse(responseCode = "401", description = "Invalid refresh token")
+    })
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<AuthResponse>> refresh(
-            @RequestBody java.util.Map<String,String> request) {
-
-        String refreshToken = request.get("refreshToken");
-
-        AuthResponse response = authService.refresh(refreshToken);
-
-        return ResponseEntity.ok(
-                new ApiResponse<>(200, "Token refreshed", response)
-        );
+    public AuthResponse refresh(@RequestBody RefreshRequest r){
+        return s.refresh(r.getRefreshToken());
     }
-    @PostMapping("/logout")
-    
-    public ResponseEntity<ApiResponse<Boolean>> logout(@RequestBody LogoutRequest request) {
 
-        authService.logout(request.getRefreshToken());
-
-        return ResponseEntity.ok(
-            new ApiResponse<>(200, "Logout successful", true)
-        );
-    }
-    
+    @Operation(summary = "Forgot Password")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Password reset email sent"),
+        @ApiResponse(responseCode = "404", description = "Email not found")
+    })
     @PostMapping("/forgot-password")
-    public String forgotPassword(@RequestBody Map<String,String> request) {
-        return authService.forgotPassword(request.get("email"));
+    public String forgot(@RequestBody ForgotPasswordRequest r){
+        return s.forgotPassword(r.getEmail());
     }
-
+    @Operation(summary = "Reset Password")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Password reset successful"),
+        @ApiResponse(responseCode = "400", description = "Invalid reset token"),
+        @ApiResponse(responseCode = "404", description = "User not found")
+    })
     @PostMapping("/reset-password")
-    public String resetPassword(@RequestBody ResetPasswordRequest request) {
-        return authService.resetPassword(
-            request.getToken(),
-            request.getNewPassword()
-        );
+    public void reset(@RequestBody ResetPasswordRequest r){
+        s.resetPassword(r.getEmail(), r.getToken(), r.getNewPassword());
     }
+
+    @Operation(summary = "Secure Test Endpoint", security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Authorized access"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    @GetMapping("/secure")
+    public String secure(){
+        return "SECURED API WORKING";
+    }
+
     
-   // -----------------SESSIONS-----------------------------
-    
+    @Operation(summary = "Get Active Sessions", security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Sessions fetched"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
     @GetMapping("/sessions")
-    public List<UserSession> getSessions(Authentication auth){
-
-        String email = auth.getName();
-
-        return userSessionRepository.findByEmailAndActiveTrue(email);
+    public List<UserSession> sessions(Authentication a){
+        return s.getSessions(a.getName());
     }
-    
-    //---------------------LOGOUT DEVICE--------------------------
-    
+
+    @Operation(summary = "Logout Specific Device", security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Device session terminated"),
+        @ApiResponse(responseCode = "404", description = "Session not found"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
     @PostMapping("/logout-device")
-    public String logoutDevice(@RequestParam Long sessionId){
-
-        UserSession session =
-            userSessionRepository.findById(sessionId)
-            .orElseThrow();
-
-        session.setActive(false);
-
-        userSessionRepository.save(session);
-
-        return "Session terminated";
+    public void logoutDevice(Authentication a, @RequestParam Long sessionId){
+        s.logoutDevice(a.getName(), sessionId);
     }
+
+    @Operation(summary = "Logout User", security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "User logged out"),
+        @ApiResponse(responseCode = "401", description = "Invalid refresh token")
+    })
+    @PostMapping("/logout")
+    public void logout(@RequestBody LogoutRequest r){
+        s.logout(r.getRefreshToken());
     }
+    
+    
+}

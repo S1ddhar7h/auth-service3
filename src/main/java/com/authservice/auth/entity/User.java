@@ -25,7 +25,7 @@ public class User {
 
     private LocalDateTime verificationTokenExpiry;
 
-    private String refreshToken;
+   private String refreshToken;
 
     private LocalDateTime refreshTokenExpiry;
 

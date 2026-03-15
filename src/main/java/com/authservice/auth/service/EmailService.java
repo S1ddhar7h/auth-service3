@@ -5,7 +5,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    @SuppressWarnings("unused")
+	private final JavaMailSender mailSender;
 
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
@@ -19,7 +20,7 @@ public class EmailService {
         System.out.println(link);
     }
 
-    // 👇 यह नया method add करो
+    
     public void sendPasswordResetEmail(String email, String token) {
 
         String link = "http://localhost:8081/auth/reset-password?token=" + token;

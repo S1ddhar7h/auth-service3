@@ -37,34 +37,46 @@ public class JwtFilter extends OncePerRequestFilter {
         this.tokenBlacklistService = tokenBlacklistService;
     }
 
-    // Skip authentication endpoints
+    // Skip only public endpoints
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getServletPath().startsWith("/auth/");
+
+        String path = request.getServletPath();
+
+        return path.equals("/auth/login")
+                || path.equals("/auth/signup")
+                || path.equals("/auth/refresh") 
+                || path.equals("/auth/forgot-password")
+                || path.equals("/auth/reset-password")
+                || path.equals("/auth/verify");
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain)
+    	
             throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
+        
 
-        // No Authorization header
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.debug("No JWT token found in request for {}", request.getRequestURI());
+            log.debug("No JWT token found for {}", request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
+            
         }
 
         String token = authHeader.substring(7);
 
-        // Blacklist check
+        // blacklist check
         if (tokenBlacklistService.isBlacklisted(token)) {
-            log.warn("Blacklisted token used for request: {}", request.getRequestURI());
+            log.warn("Blacklisted token used: {}", request.getRequestURI());
+            	
             filterChain.doFilter(request, response);
-            return;
+            return; 
+            
         }
 
         String username;
@@ -79,8 +91,10 @@ public class JwtFilter extends OncePerRequestFilter {
 
         if (username != null &&
                 SecurityContextHolder.getContext().getAuthentication() == null) {
+        	
 
-            UserDetails userDetails =
+            UserDetails userDetails = 
+            		
                     userDetailsService.loadUserByUsername(username);
 
             if (jwtUtil.validateToken(token, userDetails)) {
@@ -98,9 +112,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext()
                         .setAuthentication(authToken);
 
-                log.debug("JWT authentication successful for user: {}", username);
-            } else {
-                log.warn("JWT validation failed for user: {}", username);
+                log.debug("JWT authentication success for {}", username);
             }
         }
 
